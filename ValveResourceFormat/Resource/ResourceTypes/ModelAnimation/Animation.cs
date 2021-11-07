@@ -173,7 +173,7 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
         {
 
 
-           ///// time *= 0.02f;  ralentir l'animation
+           //// time *= 0.02f;  //  ralentir l'animation
 
 
             
@@ -212,7 +212,14 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
                 if (
                     frameIndex == 5
                     && ( bonePair.Key == "backLeg_0_R" || bonePair.Key == "backLeg_1_R" ||  bonePair.Key == "backLeg_2_R")
-                    && Name == "snark_idle_glass_tap_enter")
+                    && Name == "snark_idle_glass_tap_enter"
+
+                    ||
+
+                     frameIndex == 24
+                      && (bonePair.Key == "backLeg_0_R" || bonePair.Key == "backLeg_1_R" || bonePair.Key == "backLeg_2_R")
+                       && Name == "snark_idle_glass_tap_exit"
+                    )
                 {
  
                     float offset = 0.95f; // <-- ne faire que la fin du mouvement, sinon ca va faire un tour complet
