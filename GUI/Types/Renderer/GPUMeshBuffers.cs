@@ -40,40 +40,28 @@ namespace GUI.Types.Renderer
 
 
 
-                {
-
-
-                    byte b0 = vbib.VertexBuffers[i].Buffer[20*0+16+0];
-                    byte b1 = vbib.VertexBuffers[i].Buffer[20 * 0 + 16 + 1];
-                    byte b2 = vbib.VertexBuffers[i].Buffer[20 * 0 + 16 + 2];
-                    byte b3 = vbib.VertexBuffers[i].Buffer[20 * 0 + 16 + 3];
-
-                    byte b4 = vbib.VertexBuffers[i].Buffer[20 * 1 + 16 + 0];
-                    byte b5 = vbib.VertexBuffers[i].Buffer[20 * 1 + 16 + 1];
-                    byte b6 = vbib.VertexBuffers[i].Buffer[20 * 1 + 16 + 2];
-                    byte b7 = vbib.VertexBuffers[i].Buffer[20 * 1 + 16 + 3];
-
-                    int a = 12;
-
-
-                }
-
-
 
                 if (richard_writer != null)
                 {
                     richard_writer.Write("VB_BEG");
-                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].Count);
-                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].Size);
-                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].Attributes.Count);
-                    for (int aa = 0; aa < vbib.VertexBuffers[i].Attributes.Count; aa++)
+
+                    //richard_writer.Write((UInt32)vbib.VertexBuffers[i].Count);
+                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].ElementCount);
+
+                    //richard_writer.Write((UInt32)vbib.VertexBuffers[i].Size);
+                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].ElementSizeInBytes);
+
+                    //richard_writer.Write((UInt32)vbib.VertexBuffers[i].Attributes.Count);
+                    richard_writer.Write((UInt32)vbib.VertexBuffers[i].InputLayoutFields.Count);
+
+                    for (int aa = 0; aa < vbib.VertexBuffers[i].InputLayoutFields.Count; aa++)
                     {
-                        richard_writer.Write(vbib.VertexBuffers[i].Attributes[aa].Name);
-                        richard_writer.Write(vbib.VertexBuffers[i].Attributes[aa].Offset);
-                        richard_writer.Write((UInt32)vbib.VertexBuffers[i].Attributes[aa].Type);
+                        richard_writer.Write(vbib.VertexBuffers[i].InputLayoutFields[aa].SemanticName);
+                        richard_writer.Write(vbib.VertexBuffers[i].InputLayoutFields[aa].Offset);
+                        richard_writer.Write((UInt32)vbib.VertexBuffers[i].InputLayoutFields[aa].Format);
                     }
 
-                    richard_writer.Write(vbib.VertexBuffers[i].Buffer);
+                    richard_writer.Write(vbib.VertexBuffers[i].Data);
                     richard_writer.Write("VB_END");
                     richard_writer.Flush();
                 }
@@ -93,9 +81,9 @@ namespace GUI.Types.Renderer
                 if (richard_writer != null)
                 {
                     richard_writer.Write("ID_BEG");
-                    richard_writer.Write((UInt32)vbib.IndexBuffers[i].Count);
-                    richard_writer.Write((UInt32)vbib.IndexBuffers[i].Size);
-                    richard_writer.Write(vbib.IndexBuffers[i].Buffer);
+                    richard_writer.Write((UInt32)vbib.IndexBuffers[i].ElementCount);
+                    richard_writer.Write((UInt32)vbib.IndexBuffers[i].ElementSizeInBytes);
+                    richard_writer.Write(vbib.IndexBuffers[i].Data);
                     richard_writer.Write("ID_END");
                     richard_writer.Flush();
                 }

@@ -46,12 +46,22 @@ namespace GUI.Controls
 
             stopwatch = new Stopwatch();
 
+
+            // RICHARD  je comprends pas pourquoi - en DEBUG j'arrive pas a voir tous les models, genre  book_kleiner.   j'ai fait ce workaround qui a l'air de marcher
+            // ce bug est présent au moins pour la  1.6  et   1.10 
+
+
+
             // Initialize GL control
-#if DEBUG
-            GLControl = new GLControl(new GraphicsMode(32, 24, 0, 8), 3, 3, GraphicsContextFlags.Debug);
-#else
+//#if DEBUG
+//            GLControl = new GLControl(new GraphicsMode(32, 24, 0, 8), 3, 3, GraphicsContextFlags.Debug);
+//#else
             GLControl = new GLControl(new GraphicsMode(32, 24, 0, 8), 3, 3, GraphicsContextFlags.Default);
-#endif
+//#endif
+
+
+
+
             GLControl.Load += OnLoad;
             GLControl.Paint += OnPaint;
             GLControl.Resize += OnResize;

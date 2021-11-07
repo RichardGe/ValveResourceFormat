@@ -10,7 +10,7 @@ namespace GUI.Types.Renderer
         private Action<Animation, int> updateHandler;
         private Animation activeAnimation;
 
-        public float Time { get; private set; }
+        public float Time { get; set; }
         public bool IsPaused { get; set; }
         public int Frame
         {
