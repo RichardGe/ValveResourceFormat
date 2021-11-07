@@ -35,6 +35,7 @@ namespace GUI.Types.Renderer
             }
         }
 
+        public AnimationController AnimationController { get; } = new();
         public IEnumerable<RenderableMesh> RenderableMeshes => activeMeshRenderers;
 
         private readonly List<RenderableMesh> meshRenderers = new List<RenderableMesh>();
@@ -47,8 +48,6 @@ namespace GUI.Types.Renderer
 
         private ICollection<string> activeMeshGroups = new HashSet<string>();
         private ICollection<RenderableMesh> activeMeshRenderers = new HashSet<RenderableMesh>();
-
-        private float time;
 
         public ModelSceneNode(Scene scene, Model model, string skin = null, bool loadAnimations = true)
             : base(scene)
@@ -135,11 +134,7 @@ namespace GUI.Types.Renderer
                 return;
             }
 
-            time += context.Timestep;
-
-
-            /////time = 0.0f; // TEMP
-
+            AnimationController.Update(context.Timestep);
 
 
 
@@ -169,7 +164,12 @@ namespace GUI.Types.Renderer
                 nameStrAnimationForFile = nameStrAnimationForFile.Replace("|", "_");
 
                 string richard_model_name = Model.Data.GetProperty<string>("m_name");
-                richard_writer = new System.IO.BinaryWriter(System.IO.File.Open(richard_model_name + ".anim." + nameStrAnimationForFile, System.IO.FileMode.Create));
+                string fullnammee = richard_model_name + ".anim." + nameStrAnimationForFile;
+
+                string pathhhhh = System.IO.Path.GetDirectoryName(richard_model_name);
+                System.IO.Directory.CreateDirectory(pathhhhh); // creer folder si jamais il n'existe pas
+
+                richard_writer = new System.IO.BinaryWriter(System.IO.File.Open(fullnammee, System.IO.FileMode.Create));
        
 
 
@@ -193,7 +193,8 @@ namespace GUI.Types.Renderer
                     richard_writer.Write(activeAnimation.Name[ic]);
                 richard_writer.Write((Byte)0);
 
-                time = 0;
+                //time = 0;
+                AnimationController.Time = 0;
             }
 
             
@@ -203,7 +204,7 @@ namespace GUI.Types.Renderer
                 if (!richar_export_done)
                 {
                     richard_writer.Write("TIME_BEG");
-                    richard_writer.Write(time); // time of the current animation
+                    richard_writer.Write(AnimationController.Time); // time of the current animation
 
                 }
 
@@ -229,7 +230,7 @@ namespace GUI.Types.Renderer
                         animationMatrices[(j * 16) + 15] = 1.0f;
                     }
 
-                    animationMatrices = activeAnimation.GetAnimationMatricesAsArray(time, skeleton);
+                    animationMatrices = activeAnimation.GetAnimationMatricesAsArray(AnimationController.Time, skeleton);
 
 
                     if (!richar_export_done)
@@ -253,14 +254,14 @@ namespace GUI.Types.Renderer
                 if (!richar_export_done)
                 {
 
-                    time += 1.0f / (float)richa_fps;
+                    AnimationController.Time += 1.0f / (float)richa_fps;
 
 
                     // on s'arrete quand le temps qu'on vient de save a dépassé la durée de l'anim
                     // je pense qu'il faut s'arreter dès que le time depasse, pour eviter d'expoter une frame "fausse"
                     if (!richar_export_done)
                     {
-                        if (time > richa_dureeAnimation_seconde)
+                        if (AnimationController.Time > richa_dureeAnimation_seconde)
                             break;
                     }
 
@@ -303,7 +304,7 @@ namespace GUI.Types.Renderer
             }
         }
 
-        private void SetSkin(string skin)
+        public void SetSkin(string skin)
         {
             var materialGroups = Model.Data.GetArray<IKeyValueCollection>("m_materialGroups");
             string[] defaultMaterials = null;
@@ -328,6 +329,14 @@ namespace GUI.Types.Renderer
                     }
 
                     break;
+                }
+            }
+
+            if (meshRenderers.Count > 0)
+            {
+                foreach (var mesh in meshRenderers)
+                {
+                    mesh.SetSkin(skinMaterials);
                 }
             }
         }
@@ -433,13 +442,8 @@ namespace GUI.Types.Renderer
                     continue;
                 }
 
-                if (!newResource.ContainsBlockType(BlockType.VBIB))
-                {
-                    Console.WriteLine("Old style model, no VBIB!");
-                    continue;
-                }
-
                 meshRenderers.Add(new RenderableMesh(richard_writer, new Mesh(newResource), Scene.GuiContext, skinMaterials));
+
             }
 
             // Set active meshes to default
@@ -555,8 +559,8 @@ namespace GUI.Types.Renderer
 
         public bool SetAnimation(string animationName)
         {
-            time = 0f;
             activeAnimation = animations.FirstOrDefault(a => a.Name == animationName);
+            AnimationController.SetAnimation(activeAnimation);
 
             if (activeAnimation != default)
             {

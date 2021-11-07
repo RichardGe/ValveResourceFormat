@@ -60,22 +60,17 @@ namespace GUI.Types.Renderer
 
                 var curVertexBuffer = vbib.VertexBuffers[(int)vtxIndex];
                 var texCoordNum = 0;
-
-                var debugCount = 0;
-
-                foreach (var attribute in curVertexBuffer.Attributes)
+                foreach (var attribute in curVertexBuffer.InputLayoutFields)
                 {
-                    var attributeName = "v" + attribute.Name;
+                    var attributeName = "v" + attribute.SemanticName;
 
                     // TODO: other params too?
-                    if (attribute.Name == "TEXCOORD" && texCoordNum++ > 0)
+                    if (attribute.SemanticName == "TEXCOORD" && texCoordNum++ > 0)
                     {
                         attributeName += texCoordNum;
                     }
 
-                    BindVertexAttrib(attribute, attributeName, shader.Program, (int)curVertexBuffer.Size);
-
-                    debugCount++;
+                    BindVertexAttrib(attribute, attributeName, shader.Program, (int)curVertexBuffer.ElementSizeInBytes);
                 }
 
                 GL.BindVertexArray(0);
@@ -85,7 +80,7 @@ namespace GUI.Types.Renderer
             }
         }
 
-        private static void BindVertexAttrib(VBIB.VertexAttribute attribute, string attributeName, int shaderProgram, int stride)
+        private static void BindVertexAttrib(VBIB.RenderInputLayoutField attribute, string attributeName, int shaderProgram, int stride)
         {
             var attributeLocation = GL.GetAttribLocation(shaderProgram, attributeName);
 
@@ -97,7 +92,7 @@ namespace GUI.Types.Renderer
 
             GL.EnableVertexAttribArray(attributeLocation);
 
-            switch (attribute.Type)
+            switch (attribute.Format)
             {
                 case DXGI_FORMAT.R32G32B32_FLOAT:
                     GL.VertexAttribPointer(attributeLocation, 3, VertexAttribPointerType.Float, false, stride, (IntPtr)attribute.Offset);
@@ -136,7 +131,7 @@ namespace GUI.Types.Renderer
                     break;
 
                 default:
-                    throw new Exception("Unknown attribute format " + attribute.Type);
+                    throw new Exception("Unknown attribute format " + attribute.Format);
             }
         }
     }

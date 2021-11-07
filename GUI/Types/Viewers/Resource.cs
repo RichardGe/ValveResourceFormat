@@ -24,7 +24,10 @@ namespace GUI.Types.Viewers
         public TabPage Create(VrfGuiContext vrfGuiContext, byte[] input)
         {
             var tab = new TabPage();
-            var resource = new ValveResourceFormat.Resource();
+            var resource = new ValveResourceFormat.Resource
+            {
+                FileName = vrfGuiContext.FileName,
+            };
 
             if (input != null)
             {
@@ -144,6 +147,11 @@ namespace GUI.Types.Viewers
                     break;
 
                 case ResourceType.World:
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as glTF",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext });
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as GLB",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext, FileType = ExportFileType.GLB });
+
                     var worldmeshTab = new TabPage("MAP");
                     worldmeshTab.Controls.Add(
                         new GLWorldViewer(vrfGuiContext, (World) resource.DataBlock).ViewerControl);
@@ -151,6 +159,11 @@ namespace GUI.Types.Viewers
                     break;
 
                 case ResourceType.WorldNode:
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as glTF",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext });
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as GLB",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext, FileType = ExportFileType.GLB });
+
                     var nodemeshTab = new TabPage("WORLD NODE");
                     nodemeshTab.Controls.Add(new GLWorldViewer(vrfGuiContext, (WorldNode) resource.DataBlock)
                         .ViewerControl);
@@ -160,6 +173,8 @@ namespace GUI.Types.Viewers
                 case ResourceType.Model:
                     Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as glTF",
                         vrfGuiContext.FileName, new ExportData {Resource = resource, VrfGuiContext = vrfGuiContext});
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as GLB",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext, FileType = ExportFileType.GLB });
 
                     var modelRendererTab = new TabPage("MODEL");
                     modelRendererTab.Controls.Add(new GLModelViewer(vrfGuiContext, (Model) resource.DataBlock)
@@ -168,14 +183,11 @@ namespace GUI.Types.Viewers
                     break;
 
                 case ResourceType.Mesh:
-                    if (!resource.ContainsBlockType(BlockType.VBIB))
-                    {
-                        Console.WriteLine("Old style model, no VBIB!");
-                        break;
-                    }
 
                     Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as glTF",
                         vrfGuiContext.FileName, new ExportData {Resource = resource, VrfGuiContext = vrfGuiContext});
+                    Program.MainForm.Invoke(new ExportDel(AddToExport), resTabs, $"Export {Path.GetFileName(vrfGuiContext.FileName)} as GLB",
+                        vrfGuiContext.FileName, new ExportData { Resource = resource, VrfGuiContext = vrfGuiContext, FileType = ExportFileType.GLB });
 
                     var meshRendererTab = new TabPage("MESH");
                     meshRendererTab.Controls.Add(new GLModelViewer(vrfGuiContext, new Mesh(resource)).ViewerControl);
@@ -186,8 +198,7 @@ namespace GUI.Types.Viewers
                     var materialViewerControl = new GLMaterialViewer();
                     materialViewerControl.Load += (_, __) =>
                     {
-                        var material = vrfGuiContext.MaterialLoader.LoadMaterial(resource);
-                        var materialRenderer = new MaterialRenderer(material);
+                        var materialRenderer = new MaterialRenderer(vrfGuiContext, resource);
 
                         materialViewerControl.AddRenderer(materialRenderer);
                     };
@@ -195,6 +206,11 @@ namespace GUI.Types.Viewers
                     var materialRendererTab = new TabPage("MATERIAL");
                     materialRendererTab.Controls.Add(materialViewerControl.Control);
                     resTabs.TabPages.Add(materialRendererTab);
+                    break;
+                case ResourceType.PhysicsCollisionMesh:
+                    var physRendererTab = new TabPage("PHYSICS");
+                    physRendererTab.Controls.Add(new GLModelViewer(vrfGuiContext,(PhysAggregateData) resource.DataBlock).ViewerControl);
+                    resTabs.TabPages.Add(physRendererTab);
                     break;
             }
 
@@ -341,7 +357,12 @@ namespace GUI.Types.Viewers
                 || resource.ResourceType == ResourceType.SoundStackScript
                 || resource.ResourceType == ResourceType.EntityLump)
             {
-                resTabs.SelectTab(resTabs.TabCount - 1);
+                foreach (TabPage tab2 in resTabs.TabPages) {
+                    if (tab2.Text == "DATA") {
+                        resTabs.SelectTab(tab2);
+                        break;
+                    }
+                }
             }
 
             tab.Controls.Add(resTabs);

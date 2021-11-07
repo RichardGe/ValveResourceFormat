@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
 using GUI.Forms;
@@ -11,12 +12,8 @@ namespace GUI.Types.Exporter
 {
     public static class ExportFile
     {
-        public class ProgressReporterDialog : IProgressReporter
-        {
-            public GenericProgressForm Form { get; } = new GenericProgressForm();
-
-            public void SetProgress(string progress) => Form.SetProgress(progress);
-        }
+        static ISet<ResourceType> ResourceTypesThatAreGltfExportable = new HashSet<ResourceType>()
+        { ResourceType.Mesh, ResourceType.Model, ResourceType.WorldNode, ResourceType.World };
 
         public static void Export(string fileName, ExportData exportData)
         {
@@ -31,10 +28,18 @@ namespace GUI.Types.Exporter
 
             var filter = $"{extension} file|*.{extension}";
 
-            if (resource.ResourceType == ResourceType.Mesh || resource.ResourceType == ResourceType.Model)
+            if (ResourceTypesThatAreGltfExportable.Contains(resource.ResourceType))
             {
-                extension = "gltf";
-                filter = $"glTF file|*.gltf|{filter}";
+                if (exportData.FileType == ExportFileType.GLB)
+                {
+                    extension = "glb";
+                    filter = $"GLB file|*.glb|{filter}";
+                }
+                else
+                {
+                    extension = "gltf";
+                    filter = $"glTF file|*.gltf|{filter}";
+                }
             }
 
             var dialog = new SaveFileDialog
@@ -58,26 +63,33 @@ namespace GUI.Types.Exporter
             Settings.Config.SaveDirectory = Path.GetDirectoryName(dialog.FileName);
             Settings.Save();
 
-            var extractDialog = new ProgressReporterDialog();
-            extractDialog.Form.OnProcess += (_, __) =>
+            var extractDialog = new GenericProgressForm();
+            extractDialog.OnProcess += (_, __) =>
             {
-                if (resource.ResourceType == ResourceType.Mesh && dialog.FilterIndex == 1)
+                if (dialog.FilterIndex == 1 && ResourceTypesThatAreGltfExportable.Contains(resource.ResourceType))
                 {
                     var exporter = new GltfModelExporter
                     {
-                        ProgressReporter = extractDialog,
+                        ProgressReporter = new Progress<string>(extractDialog.SetProgress),
                         FileLoader = exportData.VrfGuiContext.FileLoader,
                     };
-                    exporter.ExportToFile(fileName, dialog.FileName, new Mesh(resource));
-                }
-                else if (resource.ResourceType == ResourceType.Model && dialog.FilterIndex == 1)
-                {
-                    var exporter = new GltfModelExporter
+                    switch(resource.ResourceType)
                     {
-                        ProgressReporter = extractDialog,
-                        FileLoader = exportData.VrfGuiContext.FileLoader,
-                    };
-                    exporter.ExportToFile(fileName, dialog.FileName, (Model)resource.DataBlock);
+                        case ResourceType.Mesh:
+                            exporter.ExportToFile(fileName, dialog.FileName, new Mesh(resource));
+                            break;
+                        case ResourceType.Model:
+                            exporter.ExportToFile(fileName, dialog.FileName, (Model)resource.DataBlock);
+                            break;
+                        case ResourceType.WorldNode:
+                            exporter.ExportToFile(fileName, dialog.FileName, (WorldNode)resource.DataBlock);
+                            break;
+                        case ResourceType.World:
+                            exporter.ExportToFile(fileName, dialog.FileName, (World)resource.DataBlock);
+                            break;
+                        default:
+                            break;
+                    }
                 }
                 else
                 {
@@ -88,7 +100,7 @@ namespace GUI.Types.Exporter
 
                 Console.WriteLine($"Export for \"{fileName}\" completed");
             };
-            extractDialog.Form.ShowDialog();
+            extractDialog.ShowDialog();
         }
     }
 }

@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using GUI.Utils;
-using ValveResourceFormat;
 using ValveResourceFormat.ResourceTypes;
 using ValveResourceFormat.Utils;
 
@@ -441,19 +440,13 @@ namespace GUI.Types.Renderer
                     classname == "sky_camera" ||
                     classname == "point_devshot_camera" ||
                     classname == "point_camera";
+                var isTrigger =
+                    classname.Contains("trigger") ||
+                    classname == "post_processing_volume";
 
-                var scaleMatrix = Matrix4x4.CreateScale(VectorExtensions.ParseVector(scale));
+                var positionVector = EntityTransformHelper.ParseVector(position);
 
-                var positionVector = VectorExtensions.ParseVector(position);
-                var positionMatrix = Matrix4x4.CreateTranslation(positionVector);
-
-                var pitchYawRoll = VectorExtensions.ParseVector(angles);
-                var rollMatrix = Matrix4x4.CreateRotationX(OpenTK.MathHelper.DegreesToRadians(pitchYawRoll.Z)); // Roll
-                var pitchMatrix = Matrix4x4.CreateRotationY(OpenTK.MathHelper.DegreesToRadians(pitchYawRoll.X)); // Pitch
-                var yawMatrix = Matrix4x4.CreateRotationZ(OpenTK.MathHelper.DegreesToRadians(pitchYawRoll.Y)); // Yaw
-
-                var rotationMatrix = rollMatrix * pitchMatrix * yawMatrix;
-                var transformationMatrix = scaleMatrix * rotationMatrix * positionMatrix;
+                var transformationMatrix = EntityTransformHelper.CalculateTransformationMatrix(entity);
 
                 if (classname == "sky_camera")
                 {
@@ -587,6 +580,31 @@ namespace GUI.Types.Renderer
                 }
 
                 scene.Add(modelNode, false);
+
+                var phys = newModel.GetEmbeddedPhys();
+                if (phys == null)
+                {
+                    var refPhysicsPaths = newModel.GetReferencedPhysNames();
+                    if (refPhysicsPaths.Any())
+                    {
+                        var newResource = guiContext.LoadFileByAnyMeansNecessary(refPhysicsPaths.First() + "_c");
+                        if (newResource != null)
+                        {
+                            phys = (PhysAggregateData)newResource.DataBlock;
+                        }
+                    }
+                }
+
+                if (phys != null)
+                {
+                    var physSceneNode = new PhysSceneNode(scene, phys)
+                    {
+                        Transform = transformationMatrix,
+                        IsTrigger = isTrigger,
+                        LayerName = layerName
+                    };
+                    scene.Add(physSceneNode, false);
+                }
             }
 
 

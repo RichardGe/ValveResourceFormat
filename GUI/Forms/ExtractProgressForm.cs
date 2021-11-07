@@ -113,7 +113,10 @@ namespace GUI.Forms
 
                 if (decompile && filePath.EndsWith("_c", StringComparison.Ordinal))
                 {
-                    using (var resource = new Resource())
+                    using (var resource = new Resource
+                    {
+                        FileName = filePath,
+                    })
                     using (var memory = new MemoryStream(output))
                     {
                         try
@@ -141,8 +144,11 @@ namespace GUI.Forms
                     }
                 }
 
-                await using var stream = new FileStream(filePath, FileMode.Create);
-                await stream.WriteAsync(output, cancellationTokenSource.Token).ConfigureAwait(false);
+                var stream = new FileStream(filePath, FileMode.Create);
+                await using (stream.ConfigureAwait(false))
+                {
+                    await stream.WriteAsync(output, cancellationTokenSource.Token).ConfigureAwait(false);
+                }
             }
         }
 

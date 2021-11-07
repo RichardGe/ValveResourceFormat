@@ -158,6 +158,28 @@ namespace GUI.Controls
             return selectionControl.CheckedListBox;
         }
 
+        public GLViewerTrackBarControl AddTrackBar(string name, Action<int> changeCallback)
+        {
+            var trackBar = new GLViewerTrackBarControl(name);
+            trackBar.TrackBar.ValueChanged += (_, __) =>
+            {
+                if (trackBar.IgnoreValueChanged)
+                {
+                    return;
+                }
+                changeCallback(trackBar.TrackBar.Value);
+
+                GLControl.Focus();
+            };
+
+            controlsPanel.Controls.Add(trackBar);
+            otherControls.Add(trackBar);
+
+            RecalculatePositions();
+
+            return trackBar;
+        }
+
         public void RecalculatePositions()
         {
             var y = 25;
@@ -296,6 +318,7 @@ namespace GUI.Controls
 
             Console.WriteLine("OpenGL version: " + GL.GetString(StringName.Version));
             Console.WriteLine("OpenGL vendor: " + GL.GetString(StringName.Vendor));
+            Console.WriteLine("OpenGL renderer: " + GL.GetString(StringName.Renderer));
             Console.WriteLine("GLSL version: " + GL.GetString(StringName.ShadingLanguageVersion));
 
             var extensions = new HashSet<string>();

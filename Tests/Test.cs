@@ -30,7 +30,10 @@ namespace Tests
 
             foreach (var file in files)
             {
-                var resource = new Resource();
+                var resource = new Resource
+                {
+                    FileName = file,
+                };
                 resource.Read(file);
 
                 resources.Add(Path.GetFileName(file), resource);
@@ -68,7 +71,10 @@ namespace Tests
 
             foreach (var file in files)
             {
-                var resource = new Resource();
+                var resource = new Resource
+                {
+                    FileName = file,
+                };
 
                 var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
                 var ms = new MemoryStream();
@@ -83,7 +89,7 @@ namespace Tests
             Assert.Multiple(() => VerifyResources(resources));
         }
 
-        private void VerifyResources(Dictionary<string, Resource> resources)
+        static void VerifyResources(Dictionary<string, Resource> resources)
         {
             SoundWavCorrectlyExports(resources["beep.vsnd_c"]);
 
@@ -137,17 +143,15 @@ namespace Tests
             }
         }
 
-        private void SoundWavCorrectlyExports(Resource resource)
+        static void SoundWavCorrectlyExports(Resource resource)
         {
             Assert.AreEqual(ResourceType.Sound, resource.ResourceType);
 
-            using (var sha1 = new SHA1CryptoServiceProvider())
-            {
-                var sound = ((Sound)resource.DataBlock).GetSound();
-                var actualHash = BitConverter.ToString(sha1.ComputeHash(sound)).Replace("-", "");
+            using var hash = SHA256.Create();
+            var sound = ((Sound)resource.DataBlock).GetSound();
+            var actualHash = BitConverter.ToString(hash.ComputeHash(sound)).Replace("-", "", StringComparison.Ordinal);
 
-                Assert.AreEqual("59AC27F1A4395D8D02E4B3ADAA99023F243C8B41", actualHash);
-            }
+            Assert.AreEqual("1F8BF83F3E827A3C02C6AE6B6BD23BBEBD4E18C4F877D092CF0C5B800DAAB2B7", actualHash);
         }
 
         [Test]

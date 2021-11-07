@@ -23,7 +23,7 @@ namespace ValveResourceFormat.ResourceTypes
             => GetRefMeshes().Where(m => m != null);
 
         public IEnumerable<(string MeshName, long LoDMask)> GetReferenceMeshNamesAndLoD()
-            => GetReferencedMeshNames().Zip(Data.GetIntegerArray("m_refLODGroupMasks"), (l, r) => (l, r));
+            => GetReferencedMeshNames().Zip(Data.GetIntegerArray("m_refLODGroupMasks"), (l, r) => (l, r)).Where(m => m.l.Length > 0);
 
         public IEnumerable<(Mesh Mesh, long LoDMask)> GetEmbeddedMeshesAndLoD()
             => GetEmbeddedMeshes().Zip(Data.GetIntegerArray("m_refLODGroupMasks"), (l, r) => (l, r));
@@ -53,6 +53,28 @@ namespace ValveResourceFormat.ResourceTypes
 
             return meshes;
         }
+
+        public PhysAggregateData GetEmbeddedPhys()
+        {
+            if (!Resource.ContainsBlockType(BlockType.CTRL))
+            {
+                return null;
+            }
+
+            var ctrl = Resource.GetBlockByType(BlockType.CTRL) as BinaryKV3;
+            var embeddedPhys = ctrl.Data.GetSubCollection("embedded_physics");
+
+            if (embeddedPhys == null)
+            {
+                return null;
+            }
+
+            var physBlockIndex = (int)embeddedPhys.GetIntegerProperty("phys_data_block");
+            return ((PhysAggregateData)Resource.GetBlockByIndex(physBlockIndex));
+        }
+
+        public IEnumerable<string> GetReferencedPhysNames()
+            => Data.GetArray<string>("m_refPhysicsData");
 
         public IEnumerable<string> GetReferencedAnimationGroupNames()
             => Data.GetArray<string>("m_refAnimGroups");
@@ -92,6 +114,9 @@ namespace ValveResourceFormat.ResourceTypes
 
         public IEnumerable<string> GetMeshGroups()
             => Data.GetArray<string>("m_meshGroups");
+
+        public IEnumerable<string> GetMaterialGroups()
+           => Data.GetArray<IKeyValueCollection>("m_materialGroups").Select(group => group.GetProperty<string>("m_name"));
 
         public IEnumerable<string> GetDefaultMeshGroups()
         {

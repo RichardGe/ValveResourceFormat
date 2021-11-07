@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RollForward>LatestMajor</RollForward>
     <OutputType>WinExe</OutputType>
@@ -10,24 +10,21 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <PublishTrimmed>true</PublishTrimmed>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <StartupObject>GUI.Program</StartupObject>
     <AssemblyName>VRF</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="3.3.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="NAudio" Version="1.10.0" />
+    <PackageReference Include="NAudio" Version="2.0.1" />
     <PackageReference Include="NLayer" Version="1.13.0" />
-    <PackageReference Include="NLayer.NAudioSupport" Version="1.1.0" />
-    <PackageReference Include="OpenTK" Version="3.2.0">
+    <PackageReference Include="NLayer.NAudioSupport" Version="1.2.0" />
+    <PackageReference Include="OpenTK" Version="3.3.2">
         <NoWarn>NU1701</NoWarn>
     </PackageReference>
     <PackageReference Include="OpenTK.GLControl" Version="3.1.0">
         <NoWarn>NU1701</NoWarn>
     </PackageReference>
-    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.80.2" />
+    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.80.3" />
     <PackageReference Include="ValvePak" Version="1.0.2.35" />
   </ItemGroup>
   <ItemGroup>
@@ -39,5 +36,10 @@
       <Project>{E685E563-5F49-4D8D-8342-A7354229E54F}</Project>
       <Name>ValveResourceFormat</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Controls\GLViewerTrackBarControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
   </ItemGroup>
 </Project>

@@ -68,6 +68,8 @@ namespace ValveResourceFormat.ResourceTypes
         private int[] CompressedMips;
         private bool IsActuallyCompressedMips;
 
+        private float[] RadianceCoefficients;
+
         public ushort ActualWidth => NonPow2Width > 0 ? NonPow2Width : Width;
         public ushort ActualHeight => NonPow2Height > 0 ? NonPow2Height : Height;
 
@@ -124,6 +126,8 @@ namespace ValveResourceFormat.ResourceTypes
                     var prevOffset = reader.BaseStream.Position;
 
                     reader.BaseStream.Position += offset;
+                    ExtraData.Add(type, reader.ReadBytes((int)size));
+                    reader.BaseStream.Position -= size;
 
                     if (type == VTexExtraData.FILL_TO_POWER_OF_TWO)
                     {
@@ -135,37 +139,42 @@ namespace ValveResourceFormat.ResourceTypes
                             NonPow2Width = nw;
                             NonPow2Height = nh;
                         }
-
-                        reader.BaseStream.Position -= 6;
                     }
-
-                    ExtraData.Add(type, reader.ReadBytes((int)size));
-
-                    if (type == VTexExtraData.COMPRESSED_MIP_SIZE)
+                    else if (type == VTexExtraData.COMPRESSED_MIP_SIZE)
                     {
-                        reader.BaseStream.Position -= size;
-
                         var int1 = reader.ReadUInt32(); // 1?
-                        var int2 = reader.ReadUInt32(); // 8?
+                        var mipsOffset = reader.ReadUInt32();
                         var mips = reader.ReadUInt32();
 
                         if (int1 != 1 && int1 != 0)
                         {
-                            throw new Exception($"int1 got: {int1}");
-                        }
-
-                        if (int2 != 8)
-                        {
-                            throw new Exception($"int2 expected 8 but got: {int2}");
+                            throw new InvalidDataException($"int1 got: {int1}");
                         }
 
                         IsActuallyCompressedMips = int1 == 1; // TODO: Verify whether this int is the one that actually controls compression
 
                         CompressedMips = new int[mips];
 
+                        reader.BaseStream.Position += mipsOffset - 8;
+
                         for (var mip = 0; mip < mips; mip++)
                         {
                             CompressedMips[mip] = reader.ReadInt32();
+                        }
+                    }
+                    else if (type == VTexExtraData.CUBEMAP_RADIANCE_SH)
+                    {
+                        var coeffsOffset = reader.ReadUInt32();
+                        var coeffs = reader.ReadUInt32();
+
+                        //Spherical Harmonics
+                        RadianceCoefficients = new float[coeffs];
+
+                        reader.BaseStream.Position += coeffsOffset - 8;
+
+                        for (var c = 0; c < coeffs; c++)
+                        {
+                            RadianceCoefficients[c] = reader.ReadSingle();
                         }
                     }
 
@@ -180,68 +189,66 @@ namespace ValveResourceFormat.ResourceTypes
         {
             if (ExtraData.TryGetValue(VTexExtraData.SHEET, out var bytes))
             {
-                using (var memoryStream = new MemoryStream(bytes))
-                using (var reader = new BinaryReader(memoryStream))
+                using var memoryStream = new MemoryStream(bytes);
+                using var reader = new BinaryReader(memoryStream);
+                var version = reader.ReadUInt32();
+                var numSequences = reader.ReadUInt32();
+
+                var sequences = new SpritesheetData.Sequence[numSequences];
+
+                for (var i = 0; i < numSequences; i++)
                 {
-                    var version = reader.ReadUInt32();
-                    var numSequences = reader.ReadUInt32();
+                    var sequenceNumber = reader.ReadUInt32();
+                    var unknown1 = reader.ReadUInt32(); // 1?
+                    var unknown2 = reader.ReadUInt32();
+                    var numFrames = reader.ReadUInt32();
+                    var framesPerSecond = reader.ReadSingle(); // Not too sure about this one
+                    var dataOffset = reader.BaseStream.Position + reader.ReadUInt32();
+                    var unknown4 = reader.ReadUInt32(); // 0?
+                    var unknown5 = reader.ReadUInt32(); // 0?
 
-                    var sequences = new SpritesheetData.Sequence[numSequences];
+                    var endOfHeaderOffset = reader.BaseStream.Position; // Store end of header to return to later
 
-                    for (var i = 0; i < numSequences; i++)
+                    // Seek to start of the sequence data
+                    reader.BaseStream.Position = dataOffset;
+
+                    var sequenceName = reader.ReadNullTermString(Encoding.UTF8);
+
+                    var frameUnknown = reader.ReadUInt16();
+
+                    var frames = new SpritesheetData.Sequence.Frame[numFrames];
+
+                    for (var j = 0; j < numFrames; j++)
                     {
-                        var sequenceNumber = reader.ReadUInt32();
-                        var unknown1 = reader.ReadUInt32(); // 1?
-                        var unknown2 = reader.ReadUInt32();
-                        var numFrames = reader.ReadUInt32();
-                        var framesPerSecond = reader.ReadSingle(); // Not too sure about this one
-                        var dataOffset = reader.BaseStream.Position + reader.ReadUInt32();
-                        var unknown4 = reader.ReadUInt32(); // 0?
-                        var unknown5 = reader.ReadUInt32(); // 0?
+                        var frameUnknown1 = reader.ReadSingle();
+                        var frameUnknown2 = reader.ReadUInt32();
+                        var frameUnknown3 = reader.ReadSingle();
 
-                        var endOfHeaderOffset = reader.BaseStream.Position; // Store end of header to return to later
-
-                        // Seek to start of the sequence data
-                        reader.BaseStream.Position = dataOffset;
-
-                        var sequenceName = reader.ReadNullTermString(Encoding.UTF8);
-
-                        var frameUnknown = reader.ReadUInt16();
-
-                        var frames = new SpritesheetData.Sequence.Frame[numFrames];
-
-                        for (var j = 0; j < numFrames; j++)
-                        {
-                            var frameUnknown1 = reader.ReadSingle();
-                            var frameUnknown2 = reader.ReadUInt32();
-                            var frameUnknown3 = reader.ReadSingle();
-
-                            frames[j] = new SpritesheetData.Sequence.Frame();
-                        }
-
-                        for (var j = 0; j < numFrames; j++)
-                        {
-                            frames[j].StartMins = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-                            frames[j].StartMaxs = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-
-                            frames[j].EndMins = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-                            frames[j].EndMaxs = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-                        }
-
-                        reader.BaseStream.Position = endOfHeaderOffset;
-
-                        sequences[i] = new SpritesheetData.Sequence
-                        {
-                            Frames = frames,
-                            FramesPerSecond = framesPerSecond,
-                        };
+                        frames[j] = new SpritesheetData.Sequence.Frame();
                     }
 
-                    return new SpritesheetData
+                    for (var j = 0; j < numFrames; j++)
                     {
-                        Sequences = sequences,
+                        frames[j].StartMins = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+                        frames[j].StartMaxs = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+
+                        frames[j].EndMins = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+                        frames[j].EndMaxs = new Vector2(reader.ReadSingle(), reader.ReadSingle());
+                    }
+
+                    reader.BaseStream.Position = endOfHeaderOffset;
+
+                    sequences[i] = new SpritesheetData.Sequence
+                    {
+                        Frames = frames,
+                        FramesPerSecond = framesPerSecond,
                     };
                 }
+
+                return new SpritesheetData
+                {
+                    Sequences = sequences,
+                };
             }
 
             return null;
@@ -480,12 +487,6 @@ namespace ValveResourceFormat.ResourceTypes
 
             var compressedSize = CompressedMips[mipLevel];
 
-            if (compressedSize >= uncompressedSize)
-            {
-                Reader.Read(output);
-                return output;
-            }
-
             var input = Reader.ReadBytes(compressedSize);
 
             LZ4Codec.Decode(input, output);
@@ -515,80 +516,83 @@ namespace ValveResourceFormat.ResourceTypes
             return SKBitmap.Decode(Reader.ReadBytes((int)Reader.BaseStream.Length));
         }
 
+#pragma warning disable CA1024 // Use properties where appropriate
         public int GetBlockSize()
         {
-            switch (Format)
+            return Format switch
             {
-                case VTexFormat.DXT1: return 8;
-                case VTexFormat.DXT5: return 16;
-                case VTexFormat.RGBA8888: return 4;
-                case VTexFormat.R16: return 2;
-                case VTexFormat.RG1616: return 4;
-                case VTexFormat.RGBA16161616: return 8;
-                case VTexFormat.R16F: return 2;
-                case VTexFormat.RG1616F: return 4;
-                case VTexFormat.RGBA16161616F: return 8;
-                case VTexFormat.R32F: return 4;
-                case VTexFormat.RG3232F: return 8;
-                case VTexFormat.RGB323232F: return 12;
-                case VTexFormat.RGBA32323232F: return 16;
-                case VTexFormat.BC6H: return 16;
-                case VTexFormat.BC7: return 16;
-                case VTexFormat.IA88: return 2;
-                case VTexFormat.ETC2: return 8;
-                case VTexFormat.ETC2_EAC: return 16;
-                case VTexFormat.BGRA8888: return 4;
-                case VTexFormat.ATI1N: return 8;
-            }
-
-            return 1;
+                VTexFormat.DXT1 => 8,
+                VTexFormat.DXT5 => 16,
+                VTexFormat.RGBA8888 => 4,
+                VTexFormat.R16 => 2,
+                VTexFormat.RG1616 => 4,
+                VTexFormat.RGBA16161616 => 8,
+                VTexFormat.R16F => 2,
+                VTexFormat.RG1616F => 4,
+                VTexFormat.RGBA16161616F => 8,
+                VTexFormat.R32F => 4,
+                VTexFormat.RG3232F => 8,
+                VTexFormat.RGB323232F => 12,
+                VTexFormat.RGBA32323232F => 16,
+                VTexFormat.BC6H => 16,
+                VTexFormat.BC7 => 16,
+                VTexFormat.IA88 => 2,
+                VTexFormat.ETC2 => 8,
+                VTexFormat.ETC2_EAC => 16,
+                VTexFormat.BGRA8888 => 4,
+                VTexFormat.ATI1N => 8,
+                _ => 1,
+            };
         }
+#pragma warning restore CA1024 // Use properties where appropriate
 
         public override string ToString()
         {
-            using (var writer = new IndentedTextWriter())
+            using var writer = new IndentedTextWriter();
+            writer.WriteLine("{0,-12} = {1}", "VTEX Version", Version);
+            writer.WriteLine("{0,-12} = {1}", "Width", Width);
+            writer.WriteLine("{0,-12} = {1}", "Height", Height);
+            writer.WriteLine("{0,-12} = {1}", "Depth", Depth);
+            writer.WriteLine("{0,-12} = {1}", "NonPow2W", NonPow2Width);
+            writer.WriteLine("{0,-12} = {1}", "NonPow2H", NonPow2Height);
+            writer.WriteLine("{0,-12} = ( {1:F6}, {2:F6}, {3:F6}, {4:F6} )", "Reflectivity", Reflectivity[0], Reflectivity[1], Reflectivity[2], Reflectivity[3]);
+            writer.WriteLine("{0,-12} = {1}", "NumMipLevels", NumMipLevels);
+            writer.WriteLine("{0,-12} = {1}", "Picmip0Res", Picmip0Res);
+            writer.WriteLine("{0,-12} = {1} (VTEX_FORMAT_{2})", "Format", (int)Format, Format);
+            writer.WriteLine("{0,-12} = 0x{1:X8}", "Flags", (int)Flags);
+
+            foreach (Enum value in Enum.GetValues(Flags.GetType()))
             {
-                writer.WriteLine("{0,-12} = {1}", "VTEX Version", Version);
-                writer.WriteLine("{0,-12} = {1}", "Width", Width);
-                writer.WriteLine("{0,-12} = {1}", "Height", Height);
-                writer.WriteLine("{0,-12} = {1}", "Depth", Depth);
-                writer.WriteLine("{0,-12} = {1}", "NonPow2W", NonPow2Width);
-                writer.WriteLine("{0,-12} = {1}", "NonPow2H", NonPow2Height);
-                writer.WriteLine("{0,-12} = ( {1:F6}, {2:F6}, {3:F6}, {4:F6} )", "Reflectivity", Reflectivity[0], Reflectivity[1], Reflectivity[2], Reflectivity[3]);
-                writer.WriteLine("{0,-12} = {1}", "NumMipLevels", NumMipLevels);
-                writer.WriteLine("{0,-12} = {1}", "Picmip0Res", Picmip0Res);
-                writer.WriteLine("{0,-12} = {1} (VTEX_FORMAT_{2})", "Format", (int)Format, Format);
-                writer.WriteLine("{0,-12} = 0x{1:X8}", "Flags", (int)Flags);
-
-                foreach (Enum value in Enum.GetValues(Flags.GetType()))
+                if (Flags.HasFlag(value))
                 {
-                    if (Flags.HasFlag(value))
-                    {
-                        writer.WriteLine("{0,-12} | 0x{1:X8} = VTEX_FLAG_{2}", string.Empty, Convert.ToInt32(value), value);
-                    }
+                    writer.WriteLine("{0,-12} | 0x{1:X8} = VTEX_FLAG_{2}", string.Empty, Convert.ToInt32(value), value);
                 }
-
-                writer.WriteLine("{0,-12} = {1} entries:", "Extra Data", ExtraData.Count);
-
-                var entry = 0;
-
-                foreach (var b in ExtraData)
-                {
-                    writer.WriteLine("{0,-12}   [ Entry {1}: VTEX_EXTRA_DATA_{2} - {3} bytes ]", string.Empty, entry++, b.Key, b.Value.Length);
-
-                    if (b.Key == VTexExtraData.COMPRESSED_MIP_SIZE)
-                    {
-                        writer.WriteLine("{0,-16}   [ {1} mips, sized: {2} ]", string.Empty, CompressedMips.Length, string.Join(", ", CompressedMips));
-                    }
-                }
-
-                for (var j = 0; j < NumMipLevels; j++)
-                {
-                    writer.WriteLine($"Mip level {j} - buffer size: {CalculateBufferSizeForMipLevel(j)}");
-                }
-
-                return writer.ToString();
             }
+
+            writer.WriteLine("{0,-12} = {1} entries:", "Extra Data", ExtraData.Count);
+
+            var entry = 0;
+
+            foreach (var b in ExtraData)
+            {
+                writer.WriteLine("{0,-12}   [ Entry {1}: VTEX_EXTRA_DATA_{2} - {3} bytes ]", string.Empty, entry++, b.Key, b.Value.Length);
+
+                if (b.Key == VTexExtraData.COMPRESSED_MIP_SIZE)
+                {
+                    writer.WriteLine("{0,-16}   [ {1} mips, sized: {2} ]", string.Empty, CompressedMips.Length, string.Join(", ", CompressedMips));
+                }
+                else if (b.Key == VTexExtraData.CUBEMAP_RADIANCE_SH)
+                {
+                    writer.WriteLine("{0,-16}   [ {1} coefficients: {2} ]", string.Empty, RadianceCoefficients.Length, string.Join(", ", RadianceCoefficients));
+                }
+            }
+
+            for (var j = 0; j < NumMipLevels; j++)
+            {
+                writer.WriteLine($"Mip level {j} - buffer size: {CalculateBufferSizeForMipLevel(j)}");
+            }
+
+            return writer.ToString();
         }
     }
 }

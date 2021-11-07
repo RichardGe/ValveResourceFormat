@@ -118,25 +118,33 @@ namespace ValveResourceFormat.ResourceTypes
         {
             Format = new Guid(reader.ReadBytes(16));
 
-            var compressionMethod = reader.ReadInt32();
-            var something = reader.ReadInt32();
-            var countOfBinaryBytes = reader.ReadInt32(); // how many bytes (binary blobs)
-            var countOfIntegers = reader.ReadInt32(); // how many 4 byte values (ints)
-            var countOfEightByteValues = reader.ReadInt32(); // how many 8 byte values (doubles)
+            var compressionMethod = reader.ReadUInt32();
+            var compressionDictionaryId = reader.ReadUInt16();
+            var compressionFrameSize = reader.ReadUInt16();
+            var countOfBinaryBytes = reader.ReadUInt32(); // how many bytes (binary blobs)
+            var countOfIntegers = reader.ReadUInt32(); // how many 4 byte values (ints)
+            var countOfEightByteValues = reader.ReadUInt32(); // how many 8 byte values (doubles)
 
             // 8 bytes that help valve preallocate, useless for us
-            reader.BaseStream.Position += 8;
+            var stringAndTypesBufferSize = reader.ReadUInt32();
+            var b = reader.ReadUInt16();
+            var c = reader.ReadUInt16();
 
-            var uncompressedSize = reader.ReadInt32();
-            var compressedSize = reader.ReadInt32();
-            var blockCount = reader.ReadInt32();
-            var blockTotalSize = reader.ReadInt32();
+            var uncompressedSize = reader.ReadUInt32();
+            var compressedSize = reader.ReadInt32(); // uint32
+            var blockCount = reader.ReadUInt32();
+            var blockTotalSize = reader.ReadInt32(); // uint32
 
             if (compressionMethod == 0)
             {
-                if (something != 0)
+                if (compressionDictionaryId != 0)
                 {
-                    throw new UnexpectedMagicException("Unhandled", something, nameof(something));
+                    throw new UnexpectedMagicException("Unhandled", compressionDictionaryId, nameof(compressionDictionaryId));
+                }
+
+                if (compressionFrameSize != 0)
+                {
+                    throw new UnexpectedMagicException("Unhandled", compressionFrameSize, nameof(compressionFrameSize));
                 }
 
                 var output = new Span<byte>(new byte[compressedSize]);
@@ -145,15 +153,39 @@ namespace ValveResourceFormat.ResourceTypes
             }
             else if (compressionMethod == 1)
             {
-                if (something != 0x40000000)
+                if (compressionDictionaryId != 0)
                 {
-                    throw new UnexpectedMagicException("Unhandled", something, nameof(something));
+                    throw new UnexpectedMagicException("Unhandled", compressionDictionaryId, nameof(compressionDictionaryId));
+                }
+
+                if (compressionFrameSize != 16384)
+                {
+                    throw new UnexpectedMagicException("Unhandled", compressionFrameSize, nameof(compressionFrameSize));
                 }
 
                 var input = reader.ReadBytes(compressedSize);
                 var output = new Span<byte>(new byte[uncompressedSize]);
 
                 LZ4Codec.Decode(input, output);
+
+                outWrite.Write(output);
+                outWrite.BaseStream.Position = 0;
+            }
+            else if (compressionMethod == 2)
+            {
+                if (compressionDictionaryId != 0)
+                {
+                    throw new UnexpectedMagicException("Unhandled", compressionDictionaryId, nameof(compressionDictionaryId));
+                }
+
+                if (compressionFrameSize != 0)
+                {
+                    throw new UnexpectedMagicException("Unhandled", compressionFrameSize, nameof(compressionFrameSize));
+                }
+
+                var input = reader.ReadBytes(compressedSize);
+                var zstd = new ZstdSharp.Decompressor();
+                var output = zstd.Unwrap(input);
 
                 outWrite.Write(output);
                 outWrite.BaseStream.Position = 0;
@@ -187,6 +219,7 @@ namespace ValveResourceFormat.ResourceTypes
             currentEightBytesOffset = outRead.BaseStream.Position;
 
             outRead.BaseStream.Position += countOfEightByteValues * 8;
+            var stringArrayStartPosition = outRead.BaseStream.Position;
 
             stringArray = new string[countOfStrings];
 
@@ -195,9 +228,7 @@ namespace ValveResourceFormat.ResourceTypes
                 stringArray[i] = outRead.ReadNullTermString(System.Text.Encoding.UTF8);
             }
 
-            // 0xFFEEDD00 trailer + size of lz4 compressed block sizes (short) + size of lz4 decompressed block sizes (int)
-            var typesArrayEnd = 4 + (blockCount * 2) + (blockCount * 4);
-            var typesLength = outRead.BaseStream.Length - outRead.BaseStream.Position - typesArrayEnd;
+            var typesLength = stringAndTypesBufferSize - (outRead.BaseStream.Position - stringArrayStartPosition);
             typesArray = new byte[typesLength];
 
             for (var i = 0; i < typesLength; i++)
@@ -207,9 +238,10 @@ namespace ValveResourceFormat.ResourceTypes
 
             if (blockCount == 0)
             {
-                if (outRead.ReadUInt32() != 0xFFEEDD00)
+                var noBlocksTrailer = outRead.ReadUInt32();
+                if (noBlocksTrailer != 0xFFEEDD00)
                 {
-                    throw new InvalidDataException("Invalid trailer");
+                    throw new UnexpectedMagicException("Invalid trailer", noBlocksTrailer, nameof(noBlocksTrailer));
                 }
 
                 // Move back to the start of the KV data for reading.
@@ -227,31 +259,52 @@ namespace ValveResourceFormat.ResourceTypes
                 uncompressedBlockLengthArray[i] = outRead.ReadInt32();
             }
 
-            if (outRead.ReadUInt32() != 0xFFEEDD00)
+            var trailer = outRead.ReadUInt32();
+            if (trailer != 0xFFEEDD00)
             {
-                throw new InvalidDataException("Invalid trailer");
+                throw new UnexpectedMagicException("Invalid trailer", trailer, nameof(trailer));
             }
 
             try
             {
                 using var uncompressedBlocks = new MemoryStream(blockTotalSize);
-                using var uncompressedBlockDataWriter = new BinaryWriter(uncompressedBlocks);
                 uncompressedBlockDataReader = new BinaryReader(uncompressedBlocks);
 
-                // TODO: Do we need to pass blockTotalSize here?
-                var lz4decoder = new LZ4ChainDecoder(blockTotalSize, 0);
-
-                for (var i = 0; i < blockCount; i++)
+                if (compressionMethod == 0)
                 {
-                    var compressedBlockLength = outRead.ReadUInt16();
+                    for (var i = 0; i < blockCount; i++)
+                    {
+                        RawBinaryReader.BaseStream.CopyTo(uncompressedBlocks, uncompressedBlockLengthArray[i]);
+                    }
+                }
+                else if (compressionMethod == 1)
+                {
+                    // TODO: Do we need to pass blockTotalSize here?
+                    using var lz4decoder = new LZ4ChainDecoder(blockTotalSize, 0);
 
-                    var input = new Span<byte>(new byte[compressedBlockLength]);
-                    var output = new Span<byte>(new byte[uncompressedBlockLengthArray[i]]);
-                    
-                    RawBinaryReader.Read(input);
-                    lz4decoder.DecodeAndDrain(input, output, out _);
+                    for (var i = 0; i < blockCount; i++)
+                    {
+                        var compressedBlockLength = outRead.ReadUInt16();
+                        var input = new Span<byte>(new byte[compressedBlockLength]);
+                        var output = new Span<byte>(new byte[uncompressedBlockLengthArray[i]]);
 
-                    uncompressedBlockDataWriter.Write(output);
+                        RawBinaryReader.Read(input);
+                        lz4decoder.DecodeAndDrain(input, output, out _);
+
+                        uncompressedBlocks.Write(output);
+                    }
+                }
+                else if (compressionMethod == 2)
+                {
+                    // This is supposed to be a streaming decompress using ZSTD_decompressStream,
+                    // but as it turns out, zstd unwrap above already decompressed all of the blocks for us,
+                    // so all we need to do is just copy the buffer.
+                    // It's possible that Valve's code needs extra decompress because they set ZSTD_d_stableOutBuffer parameter.
+                    outRead.BaseStream.CopyTo(uncompressedBlocks);
+                }
+                else
+                {
+                    throw new UnexpectedMagicException("Unimplemented compression method in block decoder", compressionMethod, nameof(compressionMethod));
                 }
 
                 uncompressedBlocks.Position = 0;

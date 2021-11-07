@@ -4,9 +4,9 @@ namespace ValveResourceFormat
 {
     public enum BlockType
     {
-#pragma warning disable 1591
         RERL = 1,
         REDI,
+        RED2,
         NTRO,
         DATA,
         VBIB,
@@ -20,6 +20,7 @@ namespace ValveResourceFormat
         ASEQ,
         AGRP,
         PHYS,
-#pragma warning restore 1591
+        INSG,
+        SrMa,
     }
 }

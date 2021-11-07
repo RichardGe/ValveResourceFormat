@@ -12,10 +12,8 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
     {
         public string Name { get; private set; }
         public float Fps { get; private set; }
-
-        private long FrameCount;
-
-        private Frame[] Frames;
+        public int FrameCount { get; private set; }
+        public IReadOnlyList<Frame> Frames { get; private set; }
 
         private Animation(
             IKeyValueCollection animDesc,
@@ -43,7 +41,26 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
             var decoderArray = MakeDecoderArray(animationData.GetArray("m_decoderArray"));
             var segmentArray = animationData.GetArray("m_segmentArray");
 
-            return animArray.Select(anim => new Animation(anim, decodeKey, decoderArray, segmentArray));
+            var animations = new List<Animation>();
+
+            foreach (var anim in animArray)
+            {
+                // Here be dragons. Animation decoding is complicated, and we have not
+                // fully figured it out, especially all of the decoder types.
+                // If an animation decoder throws, this prevents the model from loading or exporting,
+                // so we catch all exceptions here and skip over the animation.
+                // Obviously we want to properly support animation decoding, but we are not there yet.
+                try
+                {
+                    animations.Add(new Animation(anim, decodeKey, decoderArray, segmentArray));
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e);
+                }
+            }
+
+            return animations;
         }
 
         public static IEnumerable<Animation> FromResource(Resource resource, IKeyValueCollection decodeKey)
@@ -166,14 +183,14 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
                 : pDataObject as IKeyValueCollection;
             var frameBlockArray = pData.GetArray("m_frameblockArray");
 
-            FrameCount = pData.GetIntegerProperty("m_nFrames");
-            Frames = new Frame[FrameCount];
+            FrameCount = (int)pData.GetIntegerProperty("m_nFrames");
+            var frameArray = new Frame[FrameCount];
 
             // Figure out each frame
             for (var frame = 0; frame < FrameCount; frame++)
             {
                 // Create new frame object
-                Frames[frame] = new Frame();
+                frameArray[frame] = new Frame();
 
                 // Read all frame blocks
                 foreach (var frameBlock in frameBlockArray)
@@ -189,11 +206,12 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
                         foreach (var segmentIndex in segmentIndexArray)
                         {
                             var segment = segmentArray[segmentIndex];
-                            ReadSegment(frame - startFrame, segment, decodeKey, decoderArray, ref Frames[frame]);
+                            ReadSegment(frame - startFrame, segment, decodeKey, decoderArray, ref frameArray[frame]);
                         }
                     }
                 }
             }
+            Frames = frameArray;
         }
 
         /// <summary>
@@ -267,9 +285,15 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
                                 ReadHalfFloat(containerReader)));
                             break;
                         case AnimDecoderType.CCompressedAnimQuaternion:
-                        case AnimDecoderType.CCompressedFullQuaternion:
                         case AnimDecoderType.CCompressedStaticQuaternion:
                             outFrame.SetAttribute(boneNames[bone], channelAttribute, ReadQuaternion(containerReader));
+                            break;
+                        case AnimDecoderType.CCompressedFullQuaternion:
+                            outFrame.SetAttribute(boneNames[bone], channelAttribute, new Quaternion(
+                               containerReader.ReadSingle(),
+                               containerReader.ReadSingle(),
+                               containerReader.ReadSingle(),
+                               containerReader.ReadSingle()));
                             break;
 #if DEBUG
                         default:
