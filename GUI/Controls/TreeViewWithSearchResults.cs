@@ -238,16 +238,37 @@ namespace GUI.Controls
         /// </summary>
         /// <param name="sender">Object which raised event.</param>
         /// <param name="e">Event data.</param>
-        private void MainListView_MouseDoubleClick(object sender, MouseEventArgs e)
+       public void MainListView_MouseDoubleClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
                 var info = mainListView.HitTest(e.X, e.Y);
 
-                if (info.Item != null)
+                ListViewItem itemSelected = info.Item;
+
+
+                // backdoor de richard.  ca veut dire que c'est un click auto.
+                // on prend le premier item.
+                // s'il y en a pas 1. c'est un probleme
+                if (e.X == 3 && e.Y == 25)
+                {
+                    int cc = mainListView.Items.Count;
+                    if (cc != 1)
+                    {
+                        System.Windows.Forms.Application.Exit(); // ERROR
+                    }
+                    foreach (ListViewItem itt in mainListView.Items)
+                    {
+                        itemSelected = itt;
+                        break;
+                    }
+                }
+
+
+                if (itemSelected != null)
                 {
                     // if user left double clicks a folder, open its contents and display in list view
-                    var node = info.Item.Tag as TreeNode;
+                    var node = itemSelected.Tag as TreeNode;
                     if (node.Tag is TreeViewFolder)
                     {
                         node.Expand();
@@ -260,7 +281,7 @@ namespace GUI.Controls
                         mainListView.EndUpdate();
                     }
 
-                    ListViewItemDoubleClick?.Invoke(sender, new ListViewItemClickEventArgs(info.Item.Tag));
+                    ListViewItemDoubleClick?.Invoke(sender, new ListViewItemClickEventArgs(itemSelected.Tag));
                 }
                 else
                 {

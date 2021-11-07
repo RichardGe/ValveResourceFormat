@@ -13,6 +13,10 @@ namespace GUI.Types.Renderer
 {
     internal class RenderableMesh
     {
+
+        public System.IO.BinaryWriter m_richard_writer;
+
+
         public AABB BoundingBox { get; }
         public Vector4 Tint { get; set; } = Vector4.One;
 
@@ -26,8 +30,10 @@ namespace GUI.Types.Renderer
 
         private Mesh mesh;
 
-        public RenderableMesh(Mesh mesh, VrfGuiContext guiContext, Dictionary<string, string> skinMaterials = null)
+        public RenderableMesh(System.IO.BinaryWriter richard_writer, Mesh mesh, VrfGuiContext guiContext, Dictionary<string, string> skinMaterials = null)
         {
+            m_richard_writer = richard_writer;
+
             this.guiContext = guiContext;
             this.mesh = mesh;
             BoundingBox = new AABB(mesh.MinBounds, mesh.MaxBounds);
@@ -81,14 +87,19 @@ namespace GUI.Types.Renderer
         {
             var vbib = mesh.VBIB;
             var data = mesh.GetData();
-            var gpuMeshBuffers = guiContext.MeshBufferCache.GetVertexIndexBuffers(vbib);
+            var gpuMeshBuffers = guiContext.MeshBufferCache.GetVertexIndexBuffers(vbib, m_richard_writer);
 
             //Prepare drawcalls
             var sceneObjects = data.GetArray("m_sceneObjects");
 
+            int cc1 = sceneObjects.Count();
+
             foreach (var sceneObject in sceneObjects)
             {
                 var objectDrawCalls = sceneObject.GetArray("m_drawCalls");
+
+                int cc2 = objectDrawCalls.Count();
+                int counter2 = 0;
 
                 foreach (var objectDrawCall in objectDrawCalls)
                 {
@@ -118,6 +129,32 @@ namespace GUI.Types.Renderer
                     // TODO: Don't pass around so much shit
                     var drawCall = CreateDrawCall(objectDrawCall, vbib, shaderArguments, material);
 
+                    if (m_richard_writer != null)
+                    {
+                        m_richard_writer.Write("DRAWCALL_BEG");
+                        m_richard_writer.Write((uint)4); // version de cette structure
+
+                        m_richard_writer.Write((uint)Convert.ToUInt32(objectDrawCall.GetProperty<object>("m_nStartIndex")));
+                        m_richard_writer.Write((uint)Convert.ToUInt32(objectDrawCall.GetProperty<object>("m_nIndexCount")));
+
+                        // end-terminated-string
+                        for (int ic = 0; ic < materialName.Length; ic++)
+                            m_richard_writer.Write(materialName[ic]);
+                        m_richard_writer.Write((Byte)0);
+
+
+                        m_richard_writer.Write((uint)drawCall.VertexBuffer.Id);
+                        m_richard_writer.Write((uint)drawCall.VertexBuffer.Offset);
+                        m_richard_writer.Write((uint)drawCall.IndexBuffer.Id);
+                        m_richard_writer.Write((uint)drawCall.IndexBuffer.Offset);
+                        m_richard_writer.Write((uint)drawCall.IndexType);
+
+
+                        m_richard_writer.Write("DRAWCALL_END");
+
+                    }
+
+
                     if (drawCall.Material.IsBlended)
                     {
                         DrawCallsBlended.Add(drawCall);
@@ -126,6 +163,9 @@ namespace GUI.Types.Renderer
                     {
                         DrawCallsOpaque.Add(drawCall);
                     }
+                    
+
+                    counter2++;
                 }
             }
 

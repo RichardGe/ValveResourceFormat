@@ -23,7 +23,7 @@ namespace GUI.Types.Renderer
         {
         }
 
-        public GPUMeshBuffers GetVertexIndexBuffers(VBIB vbib)
+        public GPUMeshBuffers GetVertexIndexBuffers(VBIB vbib, System.IO.BinaryWriter richard_writer)
         {
             if (gpuBuffers.TryGetValue(vbib, out var gpuVbib))
             {
@@ -31,7 +31,7 @@ namespace GUI.Types.Renderer
             }
             else
             {
-                var newGpuVbib = new GPUMeshBuffers(vbib);
+                var newGpuVbib = new GPUMeshBuffers(vbib, richard_writer);
                 gpuBuffers.Add(vbib, newGpuVbib);
                 return newGpuVbib;
             }
@@ -39,7 +39,7 @@ namespace GUI.Types.Renderer
 
         public uint GetVertexArrayObject(VBIB vbib, Shader shader, uint vtxIndex, uint idxIndex)
         {
-            var gpuVbib = GetVertexIndexBuffers(vbib);
+            var gpuVbib = GetVertexIndexBuffers(vbib,null);
             var vaoKey = new VAOKey { VBIB = gpuVbib, Shader = shader, VertexIndex = vtxIndex, IndexIndex = idxIndex };
 
             if (vertexArrayObjects.TryGetValue(vaoKey, out uint vaoHandle))
@@ -54,8 +54,15 @@ namespace GUI.Types.Renderer
                 GL.BindBuffer(BufferTarget.ArrayBuffer, gpuVbib.VertexBuffers[vtxIndex].Handle);
                 GL.BindBuffer(BufferTarget.ElementArrayBuffer, gpuVbib.IndexBuffers[idxIndex].Handle);
 
+
+
+
+
                 var curVertexBuffer = vbib.VertexBuffers[(int)vtxIndex];
                 var texCoordNum = 0;
+
+                var debugCount = 0;
+
                 foreach (var attribute in curVertexBuffer.Attributes)
                 {
                     var attributeName = "v" + attribute.Name;
@@ -67,6 +74,8 @@ namespace GUI.Types.Renderer
                     }
 
                     BindVertexAttrib(attribute, attributeName, shader.Program, (int)curVertexBuffer.Size);
+
+                    debugCount++;
                 }
 
                 GL.BindVertexArray(0);

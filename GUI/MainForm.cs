@@ -52,20 +52,104 @@ namespace GUI
             Settings.Load();
 
             string[] args = Environment.GetCommandLineArgs();
-            for (int i = 1; i < args.Length; i++)
+
+
+            //for (int i = 1; i < args.Length; i++)
+            if (args.Length >= 2 )
+
             {
-                string file = args[i];
+                string file = args[1];
                 if (File.Exists(file))
                 {
                     OpenFile(file);
                 }
             }
+
+
+            return;
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
             // so we can bind keys to actions properly
             KeyPreview = true;
+
+
+            // le  timer_Tick  ne sera appelé  que si je suis en mode export
+            // c'est a dire 2 argument:  <nom VPK> <nom du model>
+            string[] args = Environment.GetCommandLineArgs();
+            if (args.Length >= 3)
+            {
+
+                System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+                timer.Interval = (1 * 1000);  // toutes les seconde
+                timer.Tick += new EventHandler(timer_Tick);
+                timer.Start();
+
+            }
+
+
+        }
+
+        private int timerCallCount; // init a 0
+        private bool TreeViewWithSearchResults_FOUND  ; // init a false
+        private void timer_Tick(object sender, EventArgs e)
+        {
+
+
+
+                if ( !TreeViewWithSearchResults_FOUND )
+            {
+
+   
+
+                int count = mainTabs.TabCount;
+                if (count == 2)
+                {
+                    foreach (var control in mainTabs.Controls)
+                    {
+
+                        // dynamic_cast 
+                        var ccc = control as System.Windows.Forms.TabPage;
+
+
+                        // var treeView = control.Controls["TreeViewWithSearchResults"] as TreeViewWithSearchResults;
+
+                        // dynamic cast ?
+                       // var ccc = control as Types.Viewers.Package;
+                        if (ccc != null)
+                        {
+                            // ccc.MainListView_MouseDoubleClick(null, new MouseEventArgs(MouseButtons.Left, 2, 3, 25, 0));
+
+                            
+
+                           // foreach (Control concon in ccc.Controls)
+                            {
+                                
+                            }
+
+                            var treeViewwww = ccc.Controls["TreeViewWithSearchResults"] as TreeViewWithSearchResults;
+                            if (treeViewwww != null)
+                            {
+                                treeViewwww.MainListView_MouseDoubleClick(null, new MouseEventArgs(MouseButtons.Left, 2, 3, 25, 0));
+                                TreeViewWithSearchResults_FOUND = true;
+                                break;
+                            }
+
+                        }
+                        else
+                        {
+                            //int a = new int();
+
+                        }
+                    }
+
+                }
+
+           //     MainListView_MouseDoubleClick(null, new MouseEventArgs(MouseButtons.Left, 2, 3, 25, 0));
+            }
+            timerCallCount++;
+            return;
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -380,6 +464,25 @@ namespace GUI
                 // since we're in a separate thread, invoke to update the UI
                 Invoke((MethodInvoker)(() => findToolStripButton.Enabled = true));
 
+
+
+                string[] args = Environment.GetCommandLineArgs();
+
+
+                if (args.Length >= 3)
+                { 
+                    string fileModel = args[2];
+                    var treeView = tab.Controls["TreeViewWithSearchResults"] as TreeViewWithSearchResults;
+                    // example   "models/props_combine/combine_lockers/combine_locker01.vmdl_c"
+                    treeView.SearchAndFillResults(fileModel, SearchType.FullPath);
+                }
+
+
+
+
+
+
+
                 return tab;
             }
             else if (Types.Viewers.CompiledShader.IsAccepted(magic))
@@ -415,7 +518,13 @@ namespace GUI
                 return new Types.Viewers.Audio().Create(vrfGuiContext, input);
             }
 
-            return new Types.Viewers.ByteViewer().Create(vrfGuiContext, input);
+            TabPage newww = new Types.Viewers.ByteViewer().Create(vrfGuiContext, input);
+
+
+
+
+
+            return newww;
         }
 
         private void MainForm_DragDrop(object sender, DragEventArgs e)
