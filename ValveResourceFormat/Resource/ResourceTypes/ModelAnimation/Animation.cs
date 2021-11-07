@@ -131,12 +131,52 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
             }
         }
 
+
+
+        public static Quaternion Add_richard(Quaternion p, Quaternion q)
+        {
+            return new Quaternion(p.X + q.X, p.Y + q.Y, p.Z + q.Z, p.W + q.W);
+        }
+        public static Quaternion ScalarMultiply_richard(Quaternion input, float scalar)
+        {
+            return new Quaternion(input.X * scalar, input.Y * scalar, input.Z * scalar, input.W * scalar);
+        }
+
+        // Slerp mais tout dans l'autre sens
+        // https://answers.unity.com/questions/261270/lerping-a-quaternion-the-long-way-around.html
+        public static Quaternion Slerp_richard(Quaternion p, Quaternion q, float t, bool shortWay)
+        {
+            float dot = Quaternion.Dot(p, q);
+            //if (shortWay)
+            //{
+            //    if (dot < 0.0f)
+            //        return Slerp(ScalarMultiply(p, -1.0f), q, t, true);
+            //}
+
+            float angle = (float)Math.Acos((float)dot);
+            Quaternion first = ScalarMultiply_richard(p, (float)Math.Sin((1.0f - t) * angle));
+            Quaternion second = ScalarMultiply_richard(q, (float)Math.Sin((t) * angle));
+            float division = 1f / (float)Math.Sin(angle);
+            return ScalarMultiply_richard(Add_richard(first, second), division);
+        }
+
+
+
+
+
+
         /// <summary>
         /// Get the transformation matrices at a time.
         /// </summary>
         /// <param name="time">The time to get the transformation for.</param>
         private Frame GetTransformsAtTime(float time)
         {
+
+
+           ///// time *= 0.02f;  ralentir l'animation
+
+
+            
             // Create output frame
             var frame = new Frame();
 
@@ -154,10 +194,35 @@ namespace ValveResourceFormat.ResourceTypes.ModelAnimation
             var frame2 = Frames[(frameIndex + 1) % FrameCount];
 
             // Interpolate bone positions and angles
+
+
             foreach (var bonePair in frame1.Bones)
             {
                 var position = Vector3.Lerp(frame1.Bones[bonePair.Key].Position, frame2.Bones[bonePair.Key].Position, t);
                 var angle = Quaternion.Slerp(frame1.Bones[bonePair.Key].Angle, frame2.Bones[bonePair.Key].Angle, t);
+
+
+
+                //
+                // Cas tres spécial :  pour cette animation du snark le model original de Valve est a un defaut
+                // on peut le voir facilement dans l'editeur de model de Valve, regler Speed=0.01  et play l'animation,
+                // la pate droite va faire un fausse rotation entre les frame 5 et 6
+                // ce petit bout de code améliore ( ne corrige pas totalement ) l'interpolation entre les 2 frames.
+                //
+                if (
+                    frameIndex == 5
+                    && ( bonePair.Key == "backLeg_0_R" || bonePair.Key == "backLeg_1_R" ||  bonePair.Key == "backLeg_2_R")
+                    && Name == "snark_idle_glass_tap_enter")
+                {
+ 
+                    float offset = 0.95f; // <-- ne faire que la fin du mouvement, sinon ca va faire un tour complet
+                    //angle = frame1.Bones[bonePair.Key].Angle;
+                    angle = Slerp_richard(frame1.Bones[bonePair.Key].Angle, frame2.Bones[bonePair.Key].Angle, offset+t*(1.0f - offset), false);
+                    //angle = Slerp_richard(frame2.Bones[bonePair.Key].Angle, frame1.Bones[bonePair.Key].Angle, t, false);
+                }
+
+
+
                 frame.Bones[bonePair.Key] = new FrameBone(position, angle);
             }
 
